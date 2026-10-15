@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -64,10 +65,10 @@ pipeline {
         stage('Login to ECR') {
             steps {
                 sh '''
-                    aws ecr get-login-password --region ${AWS_REGION} | \
+                    aws ecr get-login-password --region ${AWS_REGION} |
                     docker login \
-                    --username AWS \
-                    --password-stdin ${ECR_REGISTRY}
+                        --username AWS \
+                        --password-stdin ${ECR_REGISTRY}
                 '''
             }
         }
@@ -80,6 +81,52 @@ pipeline {
                 '''
             }
         }
+
+        stage('Update GitOps Manifest') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-gitops',
+                    usernameVariable: 'GIT_USERNAME',
+                    passwordVariable: 'GIT_TOKEN'
+                )]) {
+                    sh '''
+                        set -eu
+
+                        ASKPASS_SCRIPT="$(mktemp)"
+                        trap 'rm -f "$ASKPASS_SCRIPT"' EXIT
+                        chmod 700 "$ASKPASS_SCRIPT"
+
+                        cat > "$ASKPASS_SCRIPT" <<'EOF'
+#!/bin/sh
+case "$1" in
+    *Username*) printf '%s\\n' "$GIT_USERNAME" ;;
+    *Password*) printf '%s\\n' "$GIT_TOKEN" ;;
+    *) exit 1 ;;
+esac
+EOF
+
+                        export GIT_ASKPASS="$ASKPASS_SCRIPT"
+                        export GIT_TERMINAL_PROMPT=0
+
+                        git config user.name "Jenkins GitOps"
+                        git config user.email "jenkins-gitops@example.com"
+
+                        sed -i "s|image: .*dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|" k8s/deployment.yaml
+
+                        git add k8s/deployment.yaml
+
+                        if git diff --cached --quiet; then
+                            echo "No GitOps manifest changes to commit."
+                        else
+                            git commit -m "Deploy Seclock image ${IMAGE_TAG}"
+                            git push \
+                                "https://github.com/Afthabahammed/seclock-deploymen-plan.git" \
+                                HEAD:main
+                        fi
+                    '''
+                }
+            }
+        }
     }
 
     post {
@@ -90,3 +137,4 @@ pipeline {
         }
     }
 }
+
