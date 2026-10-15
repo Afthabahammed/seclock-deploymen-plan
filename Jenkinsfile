@@ -4,7 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'ap-south-1'
         ECR_REPOSITORY = 'seclock'
-        AWS_ACCOUNT_ID = '380314682565'
+        AWS_ACCOUNT_ID = '268666184272'
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         IMAGE_NAME = "${ECR_REGISTRY}/${ECR_REPOSITORY}"
         IMAGE_TAG = "${BUILD_NUMBER}"
@@ -26,7 +26,7 @@ pipeline {
 
                     pip install --upgrade pip
                     pip install -r requirements.txt
-                    pip install pytest httpx2
+                    pip install pytest httpx
                 '''
             }
         }
